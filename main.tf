@@ -2,14 +2,14 @@ terraform {
   backend "s3" {
     bucket         = "awsaibucket2"  # Using your existing bucket
     key            = "terraform.tfstate"
-    region         = "us-east-1"
+    region         = "us-east-2"
     dynamodb_table = "terraform-state-lock"
     encrypt        = true
   }
 }
 
 provider "aws" {
-  region = "us-east-1"
+  region = "us-east-2"
 }
 
 resource "aws_s3_bucket" "logs" {
