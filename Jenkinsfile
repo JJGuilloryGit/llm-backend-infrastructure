@@ -46,6 +46,7 @@ pipeline {
                         ).trim()
                         
                         if (tableExists.contains('not_exists')) {
+                            echo "Creating DynamoDB table terraform-state-lock..."
                             // Create the DynamoDB table
                             sh '''
                                 /var/jenkins_home/.local/bin/aws dynamodb create-table \
@@ -58,6 +59,8 @@ pipeline {
                                 # Wait for table to be active
                                 /var/jenkins_home/.local/bin/aws dynamodb wait table-exists --table-name terraform-state-lock --region us-east-1
                             '''
+                        } else {
+                            echo "DynamoDB table terraform-state-lock already exists, skipping creation..."
                         }
                     }
                 }
