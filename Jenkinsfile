@@ -25,9 +25,14 @@ pipeline {
         stage('Install AWS CLI') {
             steps {
                 sh '''
-                    apt-get update
-                    apt-get install -y python3-pip
-                    pip3 install awscli
+                    sudo rm -f /var/lib/apt/lists/lock
+                    sudo rm -f /var/cache/apt/archives/lock
+                    sudo rm -f /var/lib/dpkg/lock*
+                    sudo dpkg --configure -a
+                    sudo apt-get update
+                    sudo apt-get install -y python3-pip
+                    sudo pip3 install --upgrade pip
+                    sudo pip3 install awscli
                 '''
             }
         }
@@ -164,6 +169,7 @@ pipeline {
         }
     }
 }
+
 
 
 
