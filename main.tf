@@ -82,6 +82,7 @@ resource "aws_iam_role_policy_attachment" "lambda_policy_attachment" {
 }
 
 # Lambda function
+# Lambda function
 resource "aws_lambda_function" "backend" {
   filename      = "lambda_code.zip"
   function_name = "LLMBackend"
@@ -94,7 +95,7 @@ resource "aws_lambda_function" "backend" {
   environment {
     variables = {
       FEEDBACK_TABLE = aws_dynamodb_table.feedback.name
-      LOGS_BUCKET   = aws_s3_bucket.logs.id
+      LOGS_BUCKET   = data.aws_s3_bucket.logs.id  # Changed to use data source
     }
   }
 
