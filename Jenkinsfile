@@ -5,6 +5,7 @@ pipeline {
         AWS_REGION = 'us-east-1'
         TABLE_NAME = 'terraform-state-lock'
         TF_IN_AUTOMATION = 'true'
+        HOME = '/var/jenkins_home'  // Set HOME for pip installations
     }
     
     parameters {
@@ -25,14 +26,11 @@ pipeline {
         stage('Install AWS CLI') {
             steps {
                 sh '''
-                    sudo rm -f /var/lib/apt/lists/lock
-                    sudo rm -f /var/cache/apt/archives/lock
-                    sudo rm -f /var/lib/dpkg/lock*
-                    sudo dpkg --configure -a
-                    sudo apt-get update
-                    sudo apt-get install -y python3-pip
-                    sudo pip3 install --upgrade pip
-                    sudo pip3 install awscli
+                    curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+                    unzip -o awscliv2.zip
+                    ./aws/install --bin-dir /var/jenkins_home/.local/bin --install-dir /var/jenkins_home/.local/aws-cli --update
+                    export PATH=/var/jenkins_home/.local/bin:$PATH
+                    aws --version
                 '''
             }
         }
@@ -43,14 +41,14 @@ pipeline {
                     script {
                         // Check if table exists
                         def tableExists = sh(
-                            script: "aws dynamodb describe-table --table-name terraform-state-lock --region us-east-1 2>&1 || echo 'not_exists'",
+                            script: "/var/jenkins_home/.local/bin/aws dynamodb describe-table --table-name terraform-state-lock --region us-east-1 2>&1 || echo 'not_exists'",
                             returnStdout: true
                         ).trim()
                         
                         if (tableExists.contains('not_exists')) {
                             // Create the DynamoDB table
                             sh '''
-                                aws dynamodb create-table \
+                                /var/jenkins_home/.local/bin/aws dynamodb create-table \
                                     --table-name terraform-state-lock \
                                     --attribute-definitions AttributeName=LockID,AttributeType=S \
                                     --key-schema AttributeName=LockID,KeyType=HASH \
@@ -58,7 +56,7 @@ pipeline {
                                     --region us-east-1
                                 
                                 # Wait for table to be active
-                                aws dynamodb wait table-exists --table-name terraform-state-lock --region us-east-1
+                                /var/jenkins_home/.local/bin/aws dynamodb wait table-exists --table-name terraform-state-lock --region us-east-1
                             '''
                         }
                     }
@@ -138,7 +136,7 @@ pipeline {
                         
                         // After successful destroy, remove the DynamoDB table
                         sh '''
-                            aws dynamodb delete-table \
+                            /var/jenkins_home/.local/bin/aws dynamodb delete-table \
                                 --table-name terraform-state-lock \
                                 --region us-east-1 || true
                         '''
@@ -169,6 +167,7 @@ pipeline {
         }
     }
 }
+
 
 
 
