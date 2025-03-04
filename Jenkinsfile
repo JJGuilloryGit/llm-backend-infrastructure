@@ -2,7 +2,7 @@ pipeline {
     agent any
     
     environment {
-        AWS_REGION = 'us-east-2'
+        AWS_REGION = 'us-east-1'
         TABLE_NAME = 'terraform-state-lock'
         TF_IN_AUTOMATION = 'true'
     }
@@ -24,7 +24,7 @@ pipeline {
         
         stage('Bootstrap') {
             steps {
-                withAWS(credentials: 'aws-credentials', region: 'us-east-2') {
+                withAWS(credentials: 'aws-credentials', region: 'us-east-1') {
                     script {
                         sh '''
                             # Temporarily rename backend.tf
@@ -32,17 +32,13 @@ pipeline {
                                 mv backend.tf backend.tf.bak
                             fi
                             
-                            # Initialize without backend and apply bootstrap resources without state lock
+                            # Initialize without backend and create DynamoDB table
                             terraform init -input=false
                             terraform apply -auto-approve -lock=false \
-                              -target=aws_s3_bucket.terraform_state \
-                              -target=aws_s3_bucket_versioning.terraform_state \
-                              -target=aws_s3_bucket_server_side_encryption_configuration.terraform_state \
-                              -target=aws_s3_bucket_public_access_block.terraform_state \
                               -target=aws_dynamodb_table.terraform_state_lock
                             
                             # Verify DynamoDB table creation
-                            aws dynamodb describe-table --table-name terraform-state-lock --region us-east-2 || true
+                            aws dynamodb describe-table --table-name terraform-state-lock --region us-east-1 || true
                             
                             # Restore backend.tf
                             if [ -f backend.tf.bak ]; then
@@ -56,10 +52,9 @@ pipeline {
         
         stage('Terraform Init with Backend') {
             steps {
-                withAWS(credentials: 'aws-credentials', region: 'us-east-2') {
+                withAWS(credentials: 'aws-credentials', region: 'us-east-1') {
                     sh '''
-                        # Initialize with backend, without state lock
-                        terraform init -reconfigure -backend=true -lock=false
+                        terraform init -reconfigure -backend=true
                     '''
                 }
             }
@@ -70,8 +65,8 @@ pipeline {
                 expression { params.ACTION == 'apply' }
             }
             steps {
-                withAWS(credentials: 'aws-credentials', region: 'us-east-2') {
-                    sh 'terraform plan -lock=false -out=tfplan'
+                withAWS(credentials: 'aws-credentials', region: 'us-east-1') {
+                    sh 'terraform plan -out=tfplan'
                 }
             }
         }
@@ -81,8 +76,8 @@ pipeline {
                 expression { params.ACTION == 'apply' }
             }
             steps {
-                withAWS(credentials: 'aws-credentials', region: 'us-east-2') {
-                    sh 'terraform apply -lock=false -auto-approve tfplan'
+                withAWS(credentials: 'aws-credentials', region: 'us-east-1') {
+                    sh 'terraform apply -auto-approve tfplan'
                 }
             }
         }
@@ -92,8 +87,8 @@ pipeline {
                 expression { params.ACTION == 'destroy' }
             }
             steps {
-                withAWS(credentials: 'aws-credentials', region: 'us-east-2') {
-                    sh 'terraform destroy -lock=false -auto-approve'
+                withAWS(credentials: 'aws-credentials', region: 'us-east-1') {
+                    sh 'terraform destroy -auto-approve'
                 }
             }
         }
@@ -105,5 +100,6 @@ pipeline {
         }
     }
 }
+
 
 
