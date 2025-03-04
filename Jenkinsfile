@@ -26,27 +26,40 @@ pipeline {
             steps {
                 withAWS(credentials: 'aws-credentials', region: 'us-east-1') {
                     script {
+                        // Temporarily rename backend.tf to prevent initialization errors
                         sh '''
-                            # Initialize without backend
-                            terraform init -input=false -backend=false
+                            if [ -f backend.tf ]; then
+                                mv backend.tf backend.tf.bak
+                            fi
                             
-                            # Create bootstrap resources without state lock
-                            terraform apply -auto-approve -lock=false \
+                            # Initialize without backend
+                            terraform init
+                            
+                            # Apply bootstrap resources
+                            terraform apply -auto-approve \
                               -target=aws_s3_bucket.terraform_state \
                               -target=aws_s3_bucket_versioning.terraform_state \
                               -target=aws_s3_bucket_server_side_encryption_configuration.terraform_state \
                               -target=aws_s3_bucket_public_access_block.terraform_state \
                               -target=aws_dynamodb_table.terraform_state_lock
+                            
+                            # Restore backend.tf
+                            if [ -f backend.tf.bak ]; then
+                                mv backend.tf.bak backend.tf
+                            fi
                         '''
                     }
                 }
             }
         }
         
-        stage('Terraform Init') {
+        stage('Terraform Init with Backend') {
             steps {
                 withAWS(credentials: 'aws-credentials', region: 'us-east-1') {
-                    sh 'terraform init -reconfigure -backend=true'
+                    sh '''
+                        terraform init -reconfigure -backend=true
+                        terraform init -migrate-state
+                    '''
                 }
             }
         }
@@ -91,4 +104,5 @@ pipeline {
         }
     }
 }
+
 
