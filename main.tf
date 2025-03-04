@@ -1,3 +1,6 @@
+data "aws_s3_bucket" "logs" {
+  bucket = "awsaibucket1"  # Your existing bucket name
+}
 terraform {
   backend "s3" {
     bucket         = "awsaibucket1"
@@ -10,10 +13,6 @@ terraform {
 
 provider "aws" {
   region = "us-east-1"
-}
-
-data "aws_s3_bucket" "logs" {
-  bucket = "awsaibucket1"  # Replace with your actual logs bucket name
 }
 
 
@@ -61,7 +60,7 @@ resource "aws_iam_policy" "lambda_policy" {
           "s3:PutObject",
           "s3:GetObject"
         ]
-        Resource = "${aws_s3_bucket.logs.arn}/*"
+        Resource = "${data.aws_s3_bucket.logs.arn}/*"  # Changed to use data source
       },
       {
         Effect = "Allow"
