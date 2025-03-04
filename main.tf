@@ -44,7 +44,9 @@ resource "aws_iam_policy" "lambda_policy" {
           "bedrock:InvokeModel",
           "bedrock-runtime:InvokeModel"
         ]
-        Resource = "*"
+        Resource = [
+          "arn:aws:bedrock:us-east-1:*:foundation-model/amazon.titan-embed-text-v2"
+        ]
       },
       {
         Effect = "Allow"
@@ -60,7 +62,7 @@ resource "aws_iam_policy" "lambda_policy" {
           "s3:PutObject",
           "s3:GetObject"
         ]
-        Resource = "${data.aws_s3_bucket.logs.arn}/*"  # Changed to use data source
+        Resource = "${data.aws_s3_bucket.logs.arn}/*"
       },
       {
         Effect = "Allow"

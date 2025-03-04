@@ -42,7 +42,8 @@ pipeline {
                 withAWS(credentials: 'aws-credentials', region: 'us-east-1') {
                     script {
                         if (params.ACTION == 'destroy') {
-                            sh 'terraform init -migrate-state -backend=false -lock=false'
+                            sh 'terraform init -reconfigure -migrate-state -lock=false'
+
                         } else {
                             sh 'terraform init -lock=false'
                         }
