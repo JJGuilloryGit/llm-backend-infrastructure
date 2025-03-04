@@ -12,10 +12,7 @@ provider "aws" {
   region = "us-east-1"
 }
 
-# S3 bucket for logs
-resource "aws_s3_bucket" "logs" {
-  bucket = "awsaibucket1"
-}
+
 
 # IAM role for Lambda
 resource "aws_iam_role" "lambda_role" {
