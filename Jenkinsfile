@@ -16,22 +16,34 @@ pipeline {
         )
     }
     
-    stages {
+        stages {
         stage('Checkout') {
             steps {
                 checkout scm
             }
         }
         
-        stage('Install AWS CLI') {
+        stage('Check AWS CLI') {
             steps {
-                sh '''
-                    curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-                    unzip -o awscliv2.zip
-                    ./aws/install --bin-dir /var/jenkins_home/.local/bin --install-dir /var/jenkins_home/.local/aws-cli --update
-                    export PATH=/var/jenkins_home/.local/bin:$PATH
-                    aws --version
-                '''
+                script {
+                    def awsInstalled = sh(
+                        script: "test -f ${AWS_CLI_PATH} && ${AWS_CLI_PATH} --version",
+                        returnStatus: true
+                    ) == 0
+                    
+                    if (!awsInstalled) {
+                        echo "AWS CLI not found. Installing..."
+                        sh '''
+                            curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+                            unzip -o awscliv2.zip
+                            ./aws/install --bin-dir /var/jenkins_home/.local/bin --install-dir /var/jenkins_home/.local/aws-cli --update
+                            export PATH=/var/jenkins_home/.local/bin:$PATH
+                            aws --version
+                        '''
+                    } else {
+                        echo "AWS CLI is already installed"
+                    }
+                }
             }
         }
         
