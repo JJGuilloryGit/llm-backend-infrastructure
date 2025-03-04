@@ -12,6 +12,9 @@ provider "aws" {
   region = "us-east-1"
 }
 
+data "aws_s3_bucket" "logs" {
+  bucket = "awsaibucket1"  # Replace with your actual logs bucket name
+}
 
 
 # IAM role for Lambda
