@@ -22,31 +22,39 @@ pipeline {
             }
         }
         
+        stage('Install AWS CLI') {
+            steps {
+                sh '''
+                    apt-get update
+                    apt-get install -y python3-pip
+                    pip3 install awscli
+                '''
+            }
+        }
+        
         stage('Create DynamoDB Table') {
             steps {
-                script {
-                    docker.image('amazon/aws-cli').inside('--entrypoint=""') {
-                        withAWS(credentials: 'aws-credentials', region: 'us-east-1') {
-                            // Check if table exists
-                            def tableExists = sh(
-                                script: "aws dynamodb describe-table --table-name terraform-state-lock --region us-east-1 2>&1 || echo 'not_exists'",
-                                returnStdout: true
-                            ).trim()
-                            
-                            if (tableExists.contains('not_exists')) {
-                                // Create the DynamoDB table
-                                sh '''
-                                    aws dynamodb create-table \
-                                        --table-name terraform-state-lock \
-                                        --attribute-definitions AttributeName=LockID,AttributeType=S \
-                                        --key-schema AttributeName=LockID,KeyType=HASH \
-                                        --billing-mode PAY_PER_REQUEST \
-                                        --region us-east-1
-                                    
-                                    # Wait for table to be active
-                                    aws dynamodb wait table-exists --table-name terraform-state-lock --region us-east-1
-                                '''
-                            }
+                withAWS(credentials: 'aws-credentials', region: 'us-east-1') {
+                    script {
+                        // Check if table exists
+                        def tableExists = sh(
+                            script: "aws dynamodb describe-table --table-name terraform-state-lock --region us-east-1 2>&1 || echo 'not_exists'",
+                            returnStdout: true
+                        ).trim()
+                        
+                        if (tableExists.contains('not_exists')) {
+                            // Create the DynamoDB table
+                            sh '''
+                                aws dynamodb create-table \
+                                    --table-name terraform-state-lock \
+                                    --attribute-definitions AttributeName=LockID,AttributeType=S \
+                                    --key-schema AttributeName=LockID,KeyType=HASH \
+                                    --billing-mode PAY_PER_REQUEST \
+                                    --region us-east-1
+                                
+                                # Wait for table to be active
+                                aws dynamodb wait table-exists --table-name terraform-state-lock --region us-east-1
+                            '''
                         }
                     }
                 }
@@ -118,19 +126,17 @@ pipeline {
                 expression { params.ACTION == 'destroy' }
             }
             steps {
-                script {
-                    withAWS(credentials: 'aws-credentials', region: 'us-east-1') {
+                withAWS(credentials: 'aws-credentials', region: 'us-east-1') {
+                    script {
                         // Always use lock-free destroy
                         sh 'terraform destroy -auto-approve -lock=false'
                         
-                        // After successful destroy, remove the DynamoDB table using AWS CLI container
-                        docker.image('amazon/aws-cli').inside('--entrypoint=""') {
-                            sh '''
-                                aws dynamodb delete-table \
-                                    --table-name terraform-state-lock \
-                                    --region us-east-1 || true
-                            '''
-                        }
+                        // After successful destroy, remove the DynamoDB table
+                        sh '''
+                            aws dynamodb delete-table \
+                                --table-name terraform-state-lock \
+                                --region us-east-1 || true
+                        '''
                     }
                 }
             }
