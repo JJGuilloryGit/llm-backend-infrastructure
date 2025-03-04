@@ -22,16 +22,45 @@ pipeline {
             }
         }
         
+        stage('Create DynamoDB Table') {
+            steps {
+                withAWS(credentials: 'aws-credentials', region: 'us-east-1') {
+                    script {
+                        // Check if table exists
+                        def tableExists = sh(
+                            script: "aws dynamodb describe-table --table-name terraform-state-lock --region us-east-1 2>&1 || echo 'not_exists'",
+                            returnStdout: true
+                        ).trim()
+                        
+                        if (tableExists.contains('not_exists')) {
+                            // Create the DynamoDB table
+                            sh '''
+                                aws dynamodb create-table \
+                                    --table-name terraform-state-lock \
+                                    --attribute-definitions AttributeName=LockID,AttributeType=S \
+                                    --key-schema AttributeName=LockID,KeyType=HASH \
+                                    --billing-mode PAY_PER_REQUEST \
+                                    --region us-east-1
+                                
+                                # Wait for table to be active
+                                aws dynamodb wait table-exists --table-name terraform-state-lock --region us-east-1
+                            '''
+                        }
+                    }
+                }
+            }
+        }
+        
         stage('Terraform Init') {
             steps {
                 withAWS(credentials: 'aws-credentials', region: 'us-east-1') {
                     script {
                         if (params.ACTION == 'destroy') {
                             // Initialize without backend for destroy
-                            sh 'terraform init -migrate-state -backend=false'
+                            sh 'terraform init -migrate-state -backend=false -lock=false'
                         } else {
                             // Normal initialization for other actions
-                            sh 'terraform init'
+                            sh 'terraform init -lock=false'
                         }
                     }
                 }
@@ -45,7 +74,6 @@ pipeline {
             steps {
                 withAWS(credentials: 'aws-credentials', region: 'us-east-1') {
                     script {
-                        // Get the lock ID from the error message or user input
                         def lockId = input(
                             id: 'lockId',
                             message: 'Enter the lock ID to force unlock:',
@@ -55,8 +83,6 @@ pipeline {
                                        name: 'LOCK_ID')
                             ]
                         )
-                        
-                        // Execute force-unlock
                         sh "terraform force-unlock -force ${lockId}"
                     }
                 }
@@ -69,7 +95,7 @@ pipeline {
             }
             steps {
                 withAWS(credentials: 'aws-credentials', region: 'us-east-1') {
-                    sh 'terraform plan -out=tfplan'
+                    sh 'terraform plan -lock=false -out=tfplan'
                 }
             }
         }
@@ -80,7 +106,7 @@ pipeline {
             }
             steps {
                 withAWS(credentials: 'aws-credentials', region: 'us-east-1') {
-                    sh 'terraform apply -auto-approve tfplan'
+                    sh 'terraform apply -lock=false -auto-approve tfplan'
                 }
             }
         }
@@ -92,14 +118,15 @@ pipeline {
             steps {
                 withAWS(credentials: 'aws-credentials', region: 'us-east-1') {
                     script {
-                        // Try normal destroy first
-                        try {
-                            sh 'terraform destroy -auto-approve'
-                        } catch (Exception e) {
-                            // If normal destroy fails, try with lock disabled
-                            echo "Normal destroy failed, attempting destroy with lock disabled..."
-                            sh 'terraform destroy -auto-approve -lock=false'
-                        }
+                        // Always use lock-free destroy
+                        sh 'terraform destroy -auto-approve -lock=false'
+                        
+                        // After successful destroy, remove the DynamoDB table
+                        sh '''
+                            aws dynamodb delete-table \
+                                --table-name terraform-state-lock \
+                                --region us-east-1 || true
+                        '''
                     }
                 }
             }
@@ -114,10 +141,13 @@ pipeline {
             script {
                 if (params.ACTION == 'destroy') {
                     echo """
-                    Destroy failed. If you're experiencing lock issues, try:
+                    Destroy failed. Try the following:
                     1. Select 'force-unlock' from the build parameters
                     2. Enter the lock ID from the error message
                     3. Run the pipeline again
+                    
+                    If issues persist, you may need to manually delete the DynamoDB table:
+                    aws dynamodb delete-table --table-name terraform-state-lock --region us-east-1
                     """
                 }
             }
