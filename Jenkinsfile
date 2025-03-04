@@ -2,7 +2,7 @@ pipeline {
     agent any
     
     environment {
-        AWS_REGION = 'us-east-1'  // Using us-east-2 region
+        AWS_REGION = 'us-east-1'
         TABLE_NAME = 'terraform-state-lock'
         TF_IN_AUTOMATION = 'true'
     }
@@ -27,8 +27,16 @@ pipeline {
                 withAWS(credentials: 'aws-credentials', region: 'us-east-1') {
                     script {
                         sh '''
-                            terraform init -input=false
-                            terraform apply -auto-approve -target=aws_s3_bucket.terraform_state -target=aws_s3_bucket_versioning.terraform_state -target=aws_dynamodb_table.terraform_state_lock
+                            # Initialize without backend
+                            terraform init -input=false -backend=false
+                            
+                            # Create bootstrap resources without state lock
+                            terraform apply -auto-approve -lock=false \
+                              -target=aws_s3_bucket.terraform_state \
+                              -target=aws_s3_bucket_versioning.terraform_state \
+                              -target=aws_s3_bucket_server_side_encryption_configuration.terraform_state \
+                              -target=aws_s3_bucket_public_access_block.terraform_state \
+                              -target=aws_dynamodb_table.terraform_state_lock
                         '''
                     }
                 }
@@ -38,7 +46,7 @@ pipeline {
         stage('Terraform Init') {
             steps {
                 withAWS(credentials: 'aws-credentials', region: 'us-east-1') {
-                    sh 'terraform init -reconfigure'
+                    sh 'terraform init -reconfigure -backend=true'
                 }
             }
         }
@@ -83,3 +91,4 @@ pipeline {
         }
     }
 }
+
