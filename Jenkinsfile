@@ -10,8 +10,8 @@ pipeline {
     parameters {
         choice(
             name: 'ACTION',
-            choices: ['apply', 'destroy'],
-            description: 'Select the action to perform (apply or destroy)'
+            choices: ['apply', 'destroy', 'force-unlock'],
+            description: 'Select the action to perform (apply, destroy, or force-unlock)'
         )
     }
     
@@ -22,40 +22,43 @@ pipeline {
             }
         }
         
-        stage('Bootstrap') {
+        stage('Terraform Init') {
             steps {
                 withAWS(credentials: 'aws-credentials', region: 'us-east-1') {
                     script {
-                        sh '''
-                            # Temporarily rename backend.tf
-                            if [ -f backend.tf ]; then
-                                mv backend.tf backend.tf.bak
-                            fi
-                            
-                            # Initialize without backend and create DynamoDB table
-                            terraform init -input=false
-                            terraform apply -auto-approve -lock=false \
-                              -target=aws_dynamodb_table.terraform_state_lock
-                            
-                            # Verify DynamoDB table creation
-                            aws dynamodb describe-table --table-name terraform-state-lock --region us-east-1 || true
-                            
-                            # Restore backend.tf
-                            if [ -f backend.tf.bak ]; then
-                                mv backend.tf.bak backend.tf
-                            fi
-                        '''
+                        if (params.ACTION == 'destroy') {
+                            // Initialize without backend for destroy
+                            sh 'terraform init -migrate-state -backend=false'
+                        } else {
+                            // Normal initialization for other actions
+                            sh 'terraform init'
+                        }
                     }
                 }
             }
         }
         
-        stage('Terraform Init with Backend') {
+        stage('Force Unlock') {
+            when {
+                expression { params.ACTION == 'force-unlock' }
+            }
             steps {
                 withAWS(credentials: 'aws-credentials', region: 'us-east-1') {
-                    sh '''
-                        terraform init -reconfigure -backend=true
-                    '''
+                    script {
+                        // Get the lock ID from the error message or user input
+                        def lockId = input(
+                            id: 'lockId',
+                            message: 'Enter the lock ID to force unlock:',
+                            parameters: [
+                                string(defaultValue: '', 
+                                       description: 'Lock ID from error message', 
+                                       name: 'LOCK_ID')
+                            ]
+                        )
+                        
+                        // Execute force-unlock
+                        sh "terraform force-unlock -force ${lockId}"
+                    }
                 }
             }
         }
@@ -88,7 +91,16 @@ pipeline {
             }
             steps {
                 withAWS(credentials: 'aws-credentials', region: 'us-east-1') {
-                    sh 'terraform destroy -auto-approve'
+                    script {
+                        // Try normal destroy first
+                        try {
+                            sh 'terraform destroy -auto-approve'
+                        } catch (Exception e) {
+                            // If normal destroy fails, try with lock disabled
+                            echo "Normal destroy failed, attempting destroy with lock disabled..."
+                            sh 'terraform destroy -auto-approve -lock=false'
+                        }
+                    }
                 }
             }
         }
@@ -97,6 +109,18 @@ pipeline {
     post {
         always {
             cleanWs()
+        }
+        failure {
+            script {
+                if (params.ACTION == 'destroy') {
+                    echo """
+                    Destroy failed. If you're experiencing lock issues, try:
+                    1. Select 'force-unlock' from the build parameters
+                    2. Enter the lock ID from the error message
+                    3. Run the pipeline again
+                    """
+                }
+            }
         }
     }
 }
