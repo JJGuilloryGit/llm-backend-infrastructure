@@ -5,7 +5,8 @@ pipeline {
         AWS_REGION = 'us-east-1'
         TABLE_NAME = 'terraform-state-lock'
         TF_IN_AUTOMATION = 'true'
-        HOME = '/var/jenkins_home'  // Set HOME for pip installations
+        HOME = '/var/jenkins_home'
+        AWS_CLI_PATH = '/var/jenkins_home/.local/bin/aws'
     }
     
     parameters {
@@ -16,34 +17,23 @@ pipeline {
         )
     }
     
-        stages {
+    stages {
         stage('Checkout') {
             steps {
                 checkout scm
             }
         }
         
-        stage('Check AWS CLI') {
+        stage('Setup AWS CLI') {
             steps {
-                script {
-                    def awsInstalled = sh(
-                        script: "test -f ${AWS_CLI_PATH} && ${AWS_CLI_PATH} --version",
-                        returnStatus: true
-                    ) == 0
-                    
-                    if (!awsInstalled) {
-                        echo "AWS CLI not found. Installing..."
-                        sh '''
-                            curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-                            unzip -o awscliv2.zip
-                            ./aws/install --bin-dir /var/jenkins_home/.local/bin --install-dir /var/jenkins_home/.local/aws-cli --update
-                            export PATH=/var/jenkins_home/.local/bin:$PATH
-                            aws --version
-                        '''
-                    } else {
-                        echo "AWS CLI is already installed"
-                    }
-                }
+                sh '''
+                    mkdir -p /var/jenkins_home/.local/bin
+                    curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+                    unzip -o awscliv2.zip
+                    ./aws/install --bin-dir /var/jenkins_home/.local/bin --install-dir /var/jenkins_home/.local/aws-cli --update
+                    rm -rf aws awscliv2.zip
+                    export PATH=/var/jenkins_home/.local/bin:$PATH
+                '''
             }
         }
         
@@ -59,7 +49,6 @@ pipeline {
                         
                         if (tableExists.contains('not_exists')) {
                             echo "Creating DynamoDB table terraform-state-lock..."
-                            // Create the DynamoDB table
                             sh '''
                                 /var/jenkins_home/.local/bin/aws dynamodb create-table \
                                     --table-name terraform-state-lock \
@@ -68,7 +57,6 @@ pipeline {
                                     --billing-mode PAY_PER_REQUEST \
                                     --region us-east-1
                                 
-                                # Wait for table to be active
                                 /var/jenkins_home/.local/bin/aws dynamodb wait table-exists --table-name terraform-state-lock --region us-east-1
                             '''
                         } else {
@@ -84,10 +72,8 @@ pipeline {
                 withAWS(credentials: 'aws-credentials', region: 'us-east-1') {
                     script {
                         if (params.ACTION == 'destroy') {
-                            // Initialize without backend for destroy
                             sh 'terraform init -migrate-state -backend=false -lock=false'
                         } else {
-                            // Normal initialization for other actions
                             sh 'terraform init -lock=false'
                         }
                     }
@@ -146,10 +132,8 @@ pipeline {
             steps {
                 withAWS(credentials: 'aws-credentials', region: 'us-east-1') {
                     script {
-                        // Always use lock-free destroy
                         sh 'terraform destroy -auto-approve -lock=false'
                         
-                        // After successful destroy, remove the DynamoDB table
                         sh '''
                             /var/jenkins_home/.local/bin/aws dynamodb delete-table \
                                 --table-name terraform-state-lock \
@@ -182,6 +166,7 @@ pipeline {
         }
     }
 }
+
 
 
 
