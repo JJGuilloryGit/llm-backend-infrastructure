@@ -26,7 +26,7 @@ pipeline {
             steps {
                 withCredentials([[
                     $class: 'AmazonWebServicesCredentialsBinding',
-                    credentialsId: 'aws-access-key-id',  // Make sure this matches your Jenkins AWS credentials ID
+                    credentialsId: 'aws-credentials',  // Make sure this matches your Jenkins AWS credentials ID
                     accessKeyVariable: 'AWS_ACCESS_KEY_ID',
                     secretKeyVariable: 'AWS_SECRET_ACCESS_KEY'
                 ]]) {
@@ -42,7 +42,7 @@ pipeline {
             steps {
                 withCredentials([[
                     $class: 'AmazonWebServicesCredentialsBinding',
-                    credentialsId: 'aws-access-key-id',  // Make sure this matches your Jenkins AWS credentials ID
+                    credentialsId: 'aws-credentials',  // Make sure this matches your Jenkins AWS credentials ID
                     accessKeyVariable: 'AWS_ACCESS_KEY_ID',
                     secretKeyVariable: 'AWS_SECRET_ACCESS_KEY'
                 ]]) {
@@ -58,7 +58,7 @@ pipeline {
             steps {
                 withCredentials([[
                     $class: 'AmazonWebServicesCredentialsBinding',
-                    credentialsId: 'aws-access-key-id',  // Make sure this matches your Jenkins AWS credentials ID
+                    credentialsId: 'aws-credentials',  // Make sure this matches your Jenkins AWS credentials ID
                     accessKeyVariable: 'AWS_ACCESS_KEY_ID',
                     secretKeyVariable: 'AWS_SECRET_ACCESS_KEY'
                 ]]) {
@@ -74,7 +74,7 @@ pipeline {
             steps {
                 withCredentials([[
                     $class: 'AmazonWebServicesCredentialsBinding',
-                    credentialsId: 'aws-access-key-id',  // Make sure this matches your Jenkins AWS credentials ID
+                    credentialsId: 'aws-credentials',  // Make sure this matches your Jenkins AWS credentials ID
                     accessKeyVariable: 'AWS_ACCESS_KEY_ID',
                     secretKeyVariable: 'AWS_SECRET_ACCESS_KEY'
                 ]]) {
