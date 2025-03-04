@@ -1,5 +1,8 @@
 # LLM-Powered Mental Health Assistant
 
+![WorkflowLLM](https://github.com/user-attachments/assets/b7bfc4f1-eb67-45c6-9596-da09faef1c41)
+
+
 This project deploys an **LLM-powered mental health assistant** on **AWS** using **Terraform** and a **CI/CD pipeline with Jenkins**. It leverages **Amazon Bedrock** for AI inference, **AWS Lambda** for backend processing, **API Gateway** for exposure, **DynamoDB** for feedback storage, and **S3** for logs and data.
 
 ## Features
