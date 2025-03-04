@@ -22,15 +22,24 @@ pipeline {
             }
         }
         
+        stage('Bootstrap') {
+            steps {
+                withAWS(credentials: 'aws-credentials', region: 'us-east-1') {
+                    script {
+                        // Apply bootstrap configuration
+                        sh '''
+                            terraform init -input=false
+                            terraform apply -auto-approve -target=aws_s3_bucket.terraform_state -target=aws_s3_bucket_versioning.terraform_state -target=aws_dynamodb_table.terraform_state_lock
+                        '''
+                    }
+                }
+            }
+        }
+        
         stage('Terraform Init') {
             steps {
-                withCredentials([[
-                    $class: 'AmazonWebServicesCredentialsBinding',
-                    credentialsId: 'aws-credentials',  // Make sure this matches your Jenkins AWS credentials ID
-                    accessKeyVariable: 'AWS_ACCESS_KEY_ID',
-                    secretKeyVariable: 'AWS_SECRET_ACCESS_KEY'
-                ]]) {
-                    sh 'terraform init'
+                withAWS(credentials: 'aws-credentials', region: 'us-east-1') {
+                    sh 'terraform init -reconfigure'
                 }
             }
         }
@@ -40,12 +49,7 @@ pipeline {
                 expression { params.ACTION == 'apply' }
             }
             steps {
-                withCredentials([[
-                    $class: 'AmazonWebServicesCredentialsBinding',
-                    credentialsId: 'aws-credentials',  // Make sure this matches your Jenkins AWS credentials ID
-                    accessKeyVariable: 'AWS_ACCESS_KEY_ID',
-                    secretKeyVariable: 'AWS_SECRET_ACCESS_KEY'
-                ]]) {
+                withAWS(credentials: 'aws-credentials', region: 'us-east-1') {
                     sh 'terraform plan -out=tfplan'
                 }
             }
@@ -56,12 +60,7 @@ pipeline {
                 expression { params.ACTION == 'apply' }
             }
             steps {
-                withCredentials([[
-                    $class: 'AmazonWebServicesCredentialsBinding',
-                    credentialsId: 'aws-credentials',  // Make sure this matches your Jenkins AWS credentials ID
-                    accessKeyVariable: 'AWS_ACCESS_KEY_ID',
-                    secretKeyVariable: 'AWS_SECRET_ACCESS_KEY'
-                ]]) {
+                withAWS(credentials: 'aws-credentials', region: 'us-east-1') {
                     sh 'terraform apply -auto-approve tfplan'
                 }
             }
@@ -72,12 +71,7 @@ pipeline {
                 expression { params.ACTION == 'destroy' }
             }
             steps {
-                withCredentials([[
-                    $class: 'AmazonWebServicesCredentialsBinding',
-                    credentialsId: 'aws-credentials',  // Make sure this matches your Jenkins AWS credentials ID
-                    accessKeyVariable: 'AWS_ACCESS_KEY_ID',
-                    secretKeyVariable: 'AWS_SECRET_ACCESS_KEY'
-                ]]) {
+                withAWS(credentials: 'aws-credentials', region: 'us-east-1') {
                     sh 'terraform destroy -auto-approve'
                 }
             }
