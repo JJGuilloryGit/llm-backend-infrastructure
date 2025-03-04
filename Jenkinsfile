@@ -2,7 +2,7 @@ pipeline {
     agent any
     
     environment {
-        AWS_REGION = 'us-east-1'
+        AWS_REGION = 'us-east-2'
         TABLE_NAME = 'terraform-state-lock'
         TF_IN_AUTOMATION = 'true'
     }
@@ -24,24 +24,25 @@ pipeline {
         
         stage('Bootstrap') {
             steps {
-                withAWS(credentials: 'aws-credentials', region: 'us-east-1') {
+                withAWS(credentials: 'aws-credentials', region: 'us-east-2') {
                     script {
-                        // Temporarily rename backend.tf to prevent initialization errors
                         sh '''
+                            # Temporarily rename backend.tf
                             if [ -f backend.tf ]; then
                                 mv backend.tf backend.tf.bak
                             fi
                             
-                            # Initialize without backend
-                            terraform init
-                            
-                            # Apply bootstrap resources
-                            terraform apply -auto-approve \
+                            # Initialize without backend and apply bootstrap resources without state lock
+                            terraform init -input=false
+                            terraform apply -auto-approve -lock=false \
                               -target=aws_s3_bucket.terraform_state \
                               -target=aws_s3_bucket_versioning.terraform_state \
                               -target=aws_s3_bucket_server_side_encryption_configuration.terraform_state \
                               -target=aws_s3_bucket_public_access_block.terraform_state \
                               -target=aws_dynamodb_table.terraform_state_lock
+                            
+                            # Verify DynamoDB table creation
+                            aws dynamodb describe-table --table-name terraform-state-lock --region us-east-2 || true
                             
                             # Restore backend.tf
                             if [ -f backend.tf.bak ]; then
@@ -55,10 +56,10 @@ pipeline {
         
         stage('Terraform Init with Backend') {
             steps {
-                withAWS(credentials: 'aws-credentials', region: 'us-east-1') {
+                withAWS(credentials: 'aws-credentials', region: 'us-east-2') {
                     sh '''
-                        terraform init -reconfigure -backend=true
-                        terraform init -migrate-state
+                        # Initialize with backend, without state lock
+                        terraform init -reconfigure -backend=true -lock=false
                     '''
                 }
             }
@@ -69,8 +70,8 @@ pipeline {
                 expression { params.ACTION == 'apply' }
             }
             steps {
-                withAWS(credentials: 'aws-credentials', region: 'us-east-1') {
-                    sh 'terraform plan -out=tfplan'
+                withAWS(credentials: 'aws-credentials', region: 'us-east-2') {
+                    sh 'terraform plan -lock=false -out=tfplan'
                 }
             }
         }
@@ -80,8 +81,8 @@ pipeline {
                 expression { params.ACTION == 'apply' }
             }
             steps {
-                withAWS(credentials: 'aws-credentials', region: 'us-east-1') {
-                    sh 'terraform apply -auto-approve tfplan'
+                withAWS(credentials: 'aws-credentials', region: 'us-east-2') {
+                    sh 'terraform apply -lock=false -auto-approve tfplan'
                 }
             }
         }
@@ -91,8 +92,8 @@ pipeline {
                 expression { params.ACTION == 'destroy' }
             }
             steps {
-                withAWS(credentials: 'aws-credentials', region: 'us-east-1') {
-                    sh 'terraform destroy -auto-approve'
+                withAWS(credentials: 'aws-credentials', region: 'us-east-2') {
+                    sh 'terraform destroy -lock=false -auto-approve'
                 }
             }
         }

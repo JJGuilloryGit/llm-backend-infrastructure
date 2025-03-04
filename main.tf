@@ -1,6 +1,6 @@
 terraform {
   backend "s3" {
-    bucket         = "awsaibucket1"  # Using your existing bucket
+    bucket         = "awsaibucket2"  # Using your existing bucket
     key            = "terraform.tfstate"
     region         = "us-east-1"
     dynamodb_table = "terraform-state-lock"
@@ -13,7 +13,7 @@ provider "aws" {
 }
 
 resource "aws_s3_bucket" "logs" {
-  bucket = "awsaibucket1"
+  bucket = "awsaibucket2"
 }
 
 resource "aws_iam_role" "lambda_role" {
