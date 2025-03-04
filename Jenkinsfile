@@ -2,9 +2,17 @@ pipeline {
     agent any
     
     environment {
-        AWS_REGION = 'us-east-1'  # Changed to us-east-2
+        AWS_REGION = 'us-east-1'  // Using us-east-2 region
         TABLE_NAME = 'terraform-state-lock'
         TF_IN_AUTOMATION = 'true'
+    }
+    
+    parameters {
+        choice(
+            name: 'ACTION',
+            choices: ['apply', 'destroy'],
+            description: 'Select the action to perform (apply or destroy)'
+        )
     }
     
     stages {
@@ -16,7 +24,7 @@ pipeline {
         
         stage('Bootstrap') {
             steps {
-                withAWS(credentials: 'aws-credentials', region: 'us-east-2') {  # Changed to us-east-2
+                withAWS(credentials: 'aws-credentials', region: 'us-east-1') {
                     script {
                         sh '''
                             terraform init -input=false
@@ -29,13 +37,44 @@ pipeline {
         
         stage('Terraform Init') {
             steps {
-                withAWS(credentials: 'aws-credentials', region: 'us-east-2') {  # Changed to us-east-2
+                withAWS(credentials: 'aws-credentials', region: 'us-east-1') {
                     sh 'terraform init -reconfigure'
                 }
             }
         }
         
-        // Rest of your stages...
+        stage('Terraform Plan') {
+            when {
+                expression { params.ACTION == 'apply' }
+            }
+            steps {
+                withAWS(credentials: 'aws-credentials', region: 'us-east-1') {
+                    sh 'terraform plan -out=tfplan'
+                }
+            }
+        }
+        
+        stage('Terraform Apply') {
+            when {
+                expression { params.ACTION == 'apply' }
+            }
+            steps {
+                withAWS(credentials: 'aws-credentials', region: 'us-east-1') {
+                    sh 'terraform apply -auto-approve tfplan'
+                }
+            }
+        }
+        
+        stage('Terraform Destroy') {
+            when {
+                expression { params.ACTION == 'destroy' }
+            }
+            steps {
+                withAWS(credentials: 'aws-credentials', region: 'us-east-1') {
+                    sh 'terraform destroy -auto-approve'
+                }
+            }
+        }
     }
     
     post {
@@ -44,4 +83,3 @@ pipeline {
         }
     }
 }
-
