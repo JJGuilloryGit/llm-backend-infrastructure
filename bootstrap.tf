@@ -10,10 +10,16 @@ resource "aws_dynamodb_table" "terraform_state_lock" {
 
   lifecycle {
     prevent_destroy = false
-    ignore_changes  = [
+    ignore_changes = [
       billing_mode,
       read_capacity,
       write_capacity,
     ]
   }
+
+  tags = {
+    Name        = "terraform-state-lock"
+    Environment = "production"
+  }
 }
+

@@ -37,36 +37,6 @@ pipeline {
             }
         }
         
-        stage('Create DynamoDB Table') {
-            steps {
-                withAWS(credentials: 'aws-credentials', region: 'us-east-1') {
-                    script {
-                        // Check if table exists
-                        def tableExists = sh(
-                            script: "/var/jenkins_home/.local/bin/aws dynamodb describe-table --table-name terraform-state-lock --region us-east-1 2>&1 || echo 'not_exists'",
-                            returnStdout: true
-                        ).trim()
-                        
-                        if (tableExists.contains('not_exists')) {
-                            echo "Creating DynamoDB table terraform-state-lock..."
-                            sh '''
-                                /var/jenkins_home/.local/bin/aws dynamodb create-table \
-                                    --table-name terraform-state-lock \
-                                    --attribute-definitions AttributeName=LockID,AttributeType=S \
-                                    --key-schema AttributeName=LockID,KeyType=HASH \
-                                    --billing-mode PAY_PER_REQUEST \
-                                    --region us-east-1
-                                
-                                /var/jenkins_home/.local/bin/aws dynamodb wait table-exists --table-name terraform-state-lock --region us-east-1
-                            '''
-                        } else {
-                            echo "DynamoDB table terraform-state-lock already exists, skipping creation..."
-                        }
-                    }
-                }
-            }
-        }
-        
         stage('Terraform Init') {
             steps {
                 withAWS(credentials: 'aws-credentials', region: 'us-east-1') {
@@ -133,12 +103,6 @@ pipeline {
                 withAWS(credentials: 'aws-credentials', region: 'us-east-1') {
                     script {
                         sh 'terraform destroy -auto-approve -lock=false'
-                        
-                        sh '''
-                            /var/jenkins_home/.local/bin/aws dynamodb delete-table \
-                                --table-name terraform-state-lock \
-                                --region us-east-1 || true
-                        '''
                     }
                 }
             }
@@ -157,15 +121,13 @@ pipeline {
                     1. Select 'force-unlock' from the build parameters
                     2. Enter the lock ID from the error message
                     3. Run the pipeline again
-                    
-                    If issues persist, you may need to manually delete the DynamoDB table:
-                    aws dynamodb delete-table --table-name terraform-state-lock --region us-east-1
                     """
                 }
             }
         }
     }
 }
+
 
 
 
