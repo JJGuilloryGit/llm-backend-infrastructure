@@ -2,7 +2,7 @@ pipeline {
     agent any
     
     environment {
-        AWS_REGION = 'us-east-2'  # Changed to us-east-2
+        AWS_REGION = 'us-east-1'  # Changed to us-east-2
         TABLE_NAME = 'terraform-state-lock'
         TF_IN_AUTOMATION = 'true'
     }
