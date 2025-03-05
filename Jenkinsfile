@@ -80,7 +80,7 @@ pipeline {
             }
             steps {
                 withAWS(credentials: 'aws-credentials', region: 'us-east-1') {
-                    sh 'terraform plan -lock=false -out=tfplan'
+                    sh 'terraform plan -out=tfplan'
                 }
             }
         }
@@ -91,7 +91,7 @@ pipeline {
             }
             steps {
                 withAWS(credentials: 'aws-credentials', region: 'us-east-1') {
-                    sh 'terraform apply -lock=false -auto-approve tfplan'
+                    sh 'terraform apply -auto-approve tfplan'
                 }
             }
         }
