@@ -1,134 +1,132 @@
 pipeline {
-    agent any  // Add this line to specify where the pipeline should run
-    
+    agent any
+
     environment {
         AWS_REGION = 'us-east-1'
-        TABLE_NAME = 'terraform-state-lock'
         TF_IN_AUTOMATION = 'true'
-        HOME = '/var/jenkins_home'
-        AWS_CLI_PATH = '/var/jenkins_home/.local/bin/aws'
+        WORKSPACE = 'development'
+        AWS_CLI_PATH = '/usr/local/bin/aws'
     }
-    
-    
+
     parameters {
         choice(
             name: 'ACTION',
-            choices: ['apply', 'destroy', 'force-unlock'],
-            description: 'Select the action to perform (apply, destroy, or force-unlock)'
+            choices: ['plan', 'apply', 'destroy', 'bootstrap'],
+            description: 'Select the action to perform'
         )
     }
-    
+
     stages {
+        stage('Check/Install AWS CLI') {
+            steps {
+                script {
+                    def awsCliInstalled = sh(script: 'which aws', returnStatus: true) == 0
+                    if (!awsCliInstalled) {
+                        sh '''
+                            curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+                            unzip -o awscliv2.zip
+                            sudo ./aws/install --update
+                            rm -rf aws awscliv2.zip
+                        '''
+                    } else {
+                        echo 'AWS CLI is already installed'
+                    }
+                    // Verify AWS CLI installation
+                    sh 'aws --version'
+                }
+            }
+        }
+
         stage('Checkout') {
             steps {
                 checkout scm
             }
         }
 
-        stage('Setup AWS CLI') {
-    steps {
-        script {
-            def awsCliInstalled = sh(script: '${AWS_CLI_PATH} --version', returnStatus: true) == 0
-            if (!awsCliInstalled) {
-                sh '''
-                    mkdir -p /var/jenkins_home/.local/bin
-                    curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-                    unzip -o awscliv2.zip
-                    ./aws/install --bin-dir /var/jenkins_home/.local/bin --install-dir /var/jenkins_home/.local/aws-cli --update
-                    rm -rf aws awscliv2.zip
-                    export PATH=/var/jenkins_home/.local/bin:$PATH
-                '''
-            } else {
-                echo 'AWS CLI is already installed, skipping installation'
+        stage('Bootstrap Infrastructure') {
+            when {
+                expression { params.ACTION == 'bootstrap' }
             }
-        }
-    }
-}
-        
-        stage('Terraform Init') {
             steps {
-                withAWS(credentials: 'aws-credentials', region: 'us-east-1') {
+                withAWS(credentials: 'aws-credentials', region: env.AWS_REGION) {
                     script {
-                        if (params.ACTION == 'destroy') {
-                            sh 'terraform init -reconfigure -migrate-state -lock=false'
-
-                        } else {
-                            sh 'terraform init -lock=false'
+                        dir('bootstrap') {
+                            sh 'terraform init'
+                            sh 'terraform plan -out=tfplan'
+                            input message: 'Do you want to apply bootstrap configuration?'
+                            sh 'terraform apply tfplan'
                         }
                     }
                 }
             }
         }
-        
-        stage('Force Unlock') {
+
+        stage('Terraform Init') {
             when {
-                expression { params.ACTION == 'force-unlock' }
+                expression { params.ACTION != 'bootstrap' }
             }
             steps {
-                withAWS(credentials: 'aws-credentials', region: 'us-east-1') {
+                withAWS(credentials: 'aws-credentials', region: env.AWS_REGION) {
                     script {
-                        def lockId = input(
-                            id: 'lockId',
-                            message: 'Enter the lock ID to force unlock:',
-                            parameters: [
-                                string(defaultValue: '', 
-                                       description: 'Lock ID from error message', 
-                                       name: 'LOCK_ID')
-                            ]
-                        )
-                        sh "terraform force-unlock -force ${lockId}"
+                        if (params.ACTION == 'destroy') {
+                            sh 'terraform init -reconfigure'
+                        } else {
+                            sh 'terraform init'
+                        }
                     }
                 }
             }
         }
-        
+
         stage('Terraform Plan') {
             when {
-                expression { params.ACTION == 'apply' }
+                expression { params.ACTION != 'bootstrap' }
             }
             steps {
-                withAWS(credentials: 'aws-credentials', region: 'us-east-1') {
-                    sh 'terraform plan -out=tfplan'
-                }
-            }
-        }
-        
-        stage('Terraform Apply') {
-            when {
-                expression { params.ACTION == 'apply' }
-            }
-            steps {
-                withAWS(credentials: 'aws-credentials', region: 'us-east-1') {
-                    sh 'terraform apply -auto-approve tfplan'
-                }
-            }
-        }
-        
-        stage('Terraform Destroy') {
-            when {
-                expression { params.ACTION == 'destroy' }
-            }
-            steps {
-                withAWS(credentials: 'aws-credentials', region: 'us-east-1') {
+                withAWS(credentials: 'aws-credentials', region: env.AWS_REGION) {
                     script {
-                        sh 'terraform destroy -auto-approve -lock=false'
+                        if (params.ACTION == 'destroy') {
+                            sh 'terraform plan -destroy -out=tfplan'
+                        } else {
+                            sh 'terraform plan -out=tfplan'
+                        }
                     }
+                }
+            }
+        }
+
+        stage('Approval') {
+            when {
+                expression { params.ACTION in ['apply', 'destroy'] }
+            }
+            steps {
+                input message: "Do you want to proceed with ${params.ACTION}?"
+            }
+        }
+
+        stage('Terraform Apply/Destroy') {
+            when {
+                expression { params.ACTION in ['apply', 'destroy'] }
+            }
+            steps {
+                withAWS(credentials: 'aws-credentials', region: env.AWS_REGION) {
+                    sh 'terraform apply tfplan'
                 }
             }
         }
     }
-    
+
     post {
         always {
             cleanWs()
         }
         failure {
             script {
-                if (params.ACTION == 'destroy') {
+                if (params.ACTION in ['apply', 'destroy']) {
                     echo """
-                    Destroy failed. Try the following:
-                    1. Select 'force-unlock' from the build parameters
-                    2. Enter the lock ID from the error message
+                    Pipeline failed. If there's a lock on the state, you may need to:
+                    1. Check the Terraform state lock
+                    2. Release the lock if necessary
                     3. Run the pipeline again
                     """
                 }
