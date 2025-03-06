@@ -22,19 +22,12 @@ The infrastructure includes:
 - Terraform (v1.0.0 or later)
 - Git
 - Python 3.9+
-- Optional testing tools:
-  - tfsec
-  - checkov
-  - infracost
 
 ## Repository Structure
 ├── Jenkinsfile # Jenkins pipeline configuration
 ├── README.md # This file
 ├── bootstrap.tf # Bootstrap configuration for S3 and DynamoDB
 ├── main.tf # Main Terraform configuration
-├── test.tf # Test configuration
-├── variables.tf # Variable definitions
-├── outputs.tf # Output definitions
 └── lambda_project/
 ├── llm_handler.py # Lambda function code
 ├── requirements.txt # Python dependencies
@@ -58,7 +51,7 @@ zip -r9 ../lambda_code.zip .
 cd ..
 zip -g lambda_code.zip llm_handler.py
 
-2. Jenkins Configuration
+### 2. Jenkins Config
 Install required Jenkins plugins:
 
 AWS Credentials
@@ -87,78 +80,39 @@ Set branch specifier to */main
 
 Save
 
-Deployment Process
-1. Bootstrap Infrastructure
-First, deploy the bootstrap infrastructure which creates necessary state management resources:
+### Infrastructure Deployment
+The infrastructure can be deployed using Jenkins pipeline with two options:
 
-Go to Jenkins pipeline
+Apply: Creates or updates the infrastructure
+
+Destroy: Removes the infrastructure
+
+To deploy:
+
+Open the pipeline in Jenkins
 
 Click "Build with Parameters"
 
-Select 'bootstrap' from ACTION dropdown
+Select 'apply' or 'destroy'
 
 Click "Build"
 
-2. Main Infrastructure Deployment
-After bootstrap is complete, deploy the main infrastructure:
+### Pipeline Stages###
+Checkout : Retrieves code from Git repository
 
-Select 'plan' to review changes
+Bootstrap : Creates S3 bucket and DynamoDB table for Terraform state
 
-Select 'apply' to deploy infrastructure
+Terraform Init : Initializes Terraform working directory
 
-Approve the changes when prompted
+Terraform Plan : Creates execution plan (apply only)
 
-3. Testing Configuration
-Run the test suite before deploying changes:
+Terraform Apply : Applies changes to infrastructure (apply only)
 
-Select 'test' from ACTION dropdown
+Terraform Destroy : Removes infrastructure (destroy only)
 
-Tests will check:
+#Infrastructure Components
 
-Terraform formatting
-
-Configuration validation
-
-Security best practices
-
-Cost estimation
-
-4. Destruction Process
-To remove the infrastructure:
-
-Select 'destroy' to remove main infrastructure
-
-Wait for completion
-
-Select 'destroy-bootstrap' to remove bootstrap resources
-
-Pipeline Stages
-Standard Deployment Stages
-Checkout: Retrieves code from Git repository
-
-Bootstrap: Creates S3 bucket and DynamoDB table for Terraform state
-
-Terraform Init: Initializes Terraform working directory
-
-Terraform Plan: Creates execution plan
-
-Terraform Apply: Applies changes to infrastructure
-
-Terraform Destroy: Removes infrastructure
-
-Testing Stages
-Terraform Format Check: Ensures consistent formatting
-
-Terraform Validate: Checks configuration validity
-
-TFSEC Security Scan: Checks security best practices
-
-Checkov Security Scan: Additional security validation
-
-Cost Estimation: Estimates infrastructure costs
-
-Infrastructure Components
-Storage
+#Storage
 S3 bucket for storing logs
 
 DynamoDB table for feedback storage
@@ -167,19 +121,19 @@ S3 bucket for Terraform state
 
 DynamoDB table for state locking
 
-Compute
+#Compute
 Lambda function running Python 3.9
 
 Integration with Amazon Bedrock
 
-API
+#API
 REST API Gateway endpoint
 
 POST method for LLM interactions
 
 CORS enabled
 
-Security
+#Security
 IAM roles and policies
 
 Lambda execution role
@@ -187,69 +141,61 @@ Lambda execution role
 Bedrock invocation permissions
 
 Testing
+Test the deployed API using:
 
-Local Testing
+curl -X POST \
+  https://your-api-gateway-url/prod/backend \
+  -H 'Content-Type: application/json' \
+  -d '{"input": "your test message"}'
 
-# Format check
-terraform fmt -check -recursive
 
-# Validate configuration
-terraform init -backend=false
-terraform validate
+#Cleanup
+To remove all created resources:
 
-# Security scan
-tfsec .
-checkov -d .
+Run Jenkins pipeline with 'destroy' parameter
 
-# Cost estimation
-infracost breakdown --path .
+Manually delete bootstrap resources if needed:
 
-Pipeline Testing
-Run full test suite through Jenkins:
+S3 bucket for Terraform state
 
-Select 'test' from ACTION dropdown
+DynamoDB state lock table
 
-Review test results in Jenkins console output
+#Contributing
+Fork the repository
 
-Troubleshooting
-Common issues and solutions:
+Create your feature branch ( git checkout -b feature/AmazingFeature)
 
-State Lock Error
-Ensure DynamoDB table exists
+Commit your changes ( git commit -m 'Add some AmazingFeature')
 
-Check for stuck locks in DynamoDB
+Push to the branch ( git push origin feature/AmazingFeature)
 
-Verify AWS credentials have DynamoDB permissions
+Open a Pull Request
 
-S3 Bucket Name
-Must be globally unique
+#Security
+All sensitive credentials are stored in Jenkins credentials store
 
-Check for naming conflicts
+AWS resources use least-privilege permissions
 
-Verify AWS credentials have S3 permissions
+API Gateway uses CORS protection
 
-Lambda Timeout
-Check Lambda execution time limits
+S3 buckets are encrypted
 
-Review CloudWatch logs
+State file is encrypted and locked
 
-Adjust timeout settings if needed
+#Troubleshooting
+Common issues:
 
-API Gateway CORS
-Verify CORS configuration
+State Lock Error: Ensure DynamoDB table exists
 
-Check allowed origins
+S3 Bucket Name: Must be globally unique
 
-Test with OPTIONS request
+Lambda Timeout: Check Lambda execution time limits
 
-IAM Permissions
-Ensure proper role permissions
+API Gateway CORS: Verify CORS configuration
 
-Check policy attachments
+IAM Permissions: Ensure proper role permissions
 
-Verify resource access
-
-Maintenance
+#Maintenance
 Regular maintenance tasks:
 
 Update dependencies in requirements.txt
@@ -262,41 +208,4 @@ Check S3 bucket usage
 
 Review API Gateway metrics
 
-Update Terraform providers
-
-Contributing
-Fork the repository
-
-Create your feature branch ( git checkout -b feature/AmazingFeature)
-
-Run tests before committing
-
-Commit your changes ( git commit -m 'Add some AmazingFeature')
-
-Push to the branch ( git push origin feature/AmazingFeature)
-
-Open a Pull Request
-
-Security
-All sensitive credentials stored in Jenkins credentials store
-
-AWS resources use least-privilege permissions
-
-API Gateway uses CORS protection
-
-S3 buckets are encrypted
-
-State file is encrypted and locked
-
-Regular security scans implemented
-
 For more information or issues, please open a GitHub issue.
-
-
-This updated README includes:
-1. New testing information
-2. Detailed deployment steps
-3. Enhanced troubleshooting guide
-4. Security considerations
-5. Maintenance procedures
-6. Clear structure and organization
