@@ -1,8 +1,5 @@
 pipeline {
-    agent {
-        label 'aws-enabled-agent'  // Agent with AWS CLI pre-installed
-    }
-    
+  
     environment {
         AWS_REGION = 'us-east-1'
         TABLE_NAME = 'terraform-state-lock'
@@ -25,6 +22,26 @@ pipeline {
                 checkout scm
             }
         }
+
+        stage('Setup AWS CLI') {
+    steps {
+        script {
+            def awsCliInstalled = sh(script: '${AWS_CLI_PATH} --version', returnStatus: true) == 0
+            if (!awsCliInstalled) {
+                sh '''
+                    mkdir -p /var/jenkins_home/.local/bin
+                    curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+                    unzip -o awscliv2.zip
+                    ./aws/install --bin-dir /var/jenkins_home/.local/bin --install-dir /var/jenkins_home/.local/aws-cli --update
+                    rm -rf aws awscliv2.zip
+                    export PATH=/var/jenkins_home/.local/bin:$PATH
+                '''
+            } else {
+                echo 'AWS CLI is already installed, skipping installation'
+            }
+        }
+    }
+}
         
         stage('Terraform Init') {
             steps {
