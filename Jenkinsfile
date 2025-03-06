@@ -1,5 +1,6 @@
 pipeline {
-  
+    agent any  // Add this line to specify where the pipeline should run
+    
     environment {
         AWS_REGION = 'us-east-1'
         TABLE_NAME = 'terraform-state-lock'
@@ -7,6 +8,7 @@ pipeline {
         HOME = '/var/jenkins_home'
         AWS_CLI_PATH = '/var/jenkins_home/.local/bin/aws'
     }
+    
     
     parameters {
         choice(
