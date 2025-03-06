@@ -23,7 +23,7 @@ Below is a high-level workflow of the backend infrastructure:
 6. **S3 Bucket**: Stores logs and Terraform state files.
 7. **Response to Client**: The processed response is sent back via the API Gateway.
 
-![Workflow Diagram](assets/workflow_diagram.png)
+![WorkflowLLM](https://github.com/user-attachments/assets/4be31832-d6f1-4852-b17e-8a611042d3a8)
 
 ## Prerequisites
 - AWS Account
