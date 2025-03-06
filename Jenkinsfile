@@ -24,7 +24,7 @@ pipeline {
 
         stage('Bootstrap Infrastructure') {
             when {
-                expression { params.ACTION == 'destroy-bootstrap' }
+                expression { params.ACTION == 'bootstrap' }
             }
             steps {
                 withAWS(credentials: 'aws-credentials', region: env.AWS_REGION) {
