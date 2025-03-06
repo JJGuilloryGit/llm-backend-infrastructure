@@ -10,7 +10,7 @@ pipeline {
     parameters {
         choice(
             name: 'ACTION',
-            choices: ['plan', 'apply', 'destroy', 'bootstrap'],
+            choices: ['bootstrap', 'plan', 'apply', 'destroy'],  // Moved bootstrap to first position
             description: 'Select the action to perform'
         )
     }
@@ -29,8 +29,23 @@ pipeline {
             steps {
                 withAWS(credentials: 'aws-credentials', region: env.AWS_REGION) {
                     script {
+                        // Explicitly check if bootstrap.tf exists
+                        sh 'ls -la bootstrap.tf || echo "bootstrap.tf not found in root directory"'
+                        
+                        // Create bootstrap directory if it doesn't exist
+                        sh 'mkdir -p bootstrap'
+                        
+                        // Copy bootstrap.tf to bootstrap directory if it's in root
+                        sh '''
+                            if [ -f bootstrap.tf ]; then
+                                cp bootstrap.tf bootstrap/
+                                echo "Copied bootstrap.tf to bootstrap directory"
+                            fi
+                        '''
+                        
                         dir('bootstrap') {
-                            sh 'terraform init'
+                            sh 'ls -la'  // List files for verification
+                            sh 'terraform init -reconfigure'
                             sh 'terraform plan -out=tfplan'
                             input message: 'Do you want to apply bootstrap configuration?'
                             sh 'terraform apply tfplan'
@@ -113,6 +128,7 @@ pipeline {
         }
     }
 }
+
 
 
 
