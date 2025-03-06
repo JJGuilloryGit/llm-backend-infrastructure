@@ -16,26 +16,45 @@ pipeline {
         )
     }
 
-    stages {
-        stage('Check/Install AWS CLI') {
-            steps {
-                script {
-                    def awsCliInstalled = sh(script: 'which aws', returnStatus: true) == 0
-                    if (!awsCliInstalled) {
-                        sh '''
-                            curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-                            unzip -o awscliv2.zip
-                            sudo ./aws/install --update
-                            rm -rf aws awscliv2.zip
-                        '''
-                    } else {
-                        echo 'AWS CLI is already installed'
-                    }
-                    // Verify AWS CLI installation
-                    sh 'aws --version'
+    stage('Check/Install AWS CLI') {
+    steps {
+        script {
+            try {
+                def awsCliInstalled = sh(script: 'which aws', returnStatus: true) == 0
+                if (!awsCliInstalled) {
+                    sh '''
+                        # Create local bin directory
+                        mkdir -p $HOME/.local/bin
+                        
+                        # Download AWS CLI
+                        curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+                        unzip -o awscliv2.zip
+                        
+                        # Install to user's home directory
+                        ./aws/install --bin-dir $HOME/.local/bin --install-dir $HOME/.local/aws-cli
+                        
+                        # Add to PATH
+                        export PATH=$HOME/.local/bin:$PATH
+                        
+                        # Clean up
+                        rm -rf aws awscliv2.zip
+                    '''
+                    
+                    // Update PATH in Jenkins environment
+                    env.PATH = "${env.HOME}/.local/bin:${env.PATH}"
+                } else {
+                    echo 'AWS CLI is already installed'
                 }
+                
+                // Verify installation
+                sh 'aws --version'
+            } catch (Exception e) {
+                echo "Error installing AWS CLI: ${e.getMessage()}"
+                error "AWS CLI installation failed"
             }
         }
+    }
+}
 
         stage('Checkout') {
             steps {
