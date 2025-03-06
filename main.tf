@@ -1,5 +1,12 @@
-data "aws_s3_bucket" "logs" {
-  bucket = "awsaibucket1"  # Your existing bucket name
+resource "aws_dynamodb_table" "terraform_state_lock" {
+  name           = "terraform-state-lock"
+  billing_mode   = "PAY_PER_REQUEST"
+  hash_key       = "LockID"
+
+  attribute {
+    name = "LockID"
+    type = "S"
+  }
 }
 terraform {
   backend "s3" {
@@ -9,6 +16,10 @@ terraform {
     dynamodb_table = "terraform-state-lock"
     encrypt        = true
   }
+}
+
+data "aws_s3_bucket" "logs" {
+  bucket = "awsaibucket1"  # Your existing bucket name
 }
 
 provider "aws" {
